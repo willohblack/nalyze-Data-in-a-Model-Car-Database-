@@ -56,3 +56,4 @@ jobs:
             LEFT JOIN sales ON products.product_id = sales.product_id
             GROUP BY products.product_id, products.product_name, inventory.quantity
             HAVING total_sold = 0 OR total_sold < 5;"
+            
