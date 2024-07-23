@@ -1,0 +1,59 @@
+name: Database Setup and Query
+
+on: [push, pull_request]
+
+jobs:
+  setup-db:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:latest
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: mintclassics
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Wait for MySQL to be ready
+        run: |
+          until mysqladmin ping -h "localhost" --silent; do
+            echo 'waiting for mysql to be ready...'
+            sleep 5
+          done
+
+      - name: Create and populate the database
+        run: |
+          mysql -h localhost -u root -proot -e "CREATE DATABASE IF NOT EXISTS mintclassics;"
+          mysql -h localhost -u root -proot mintclassics < mintclassicsDB.sql
+
+      - name: Run queries
+        run: |
+          mysql -h localhost -u root -proot mintclassics -e "
+            SELECT products.product_id, products.product_name, inventory.quantity, storage_facilities.facility_name
+            FROM products
+            JOIN inventory ON products.product_id = inventory.product_id
+            JOIN storage_facilities ON inventory.facility_id = storage_facilities.facility_id;"
+          mysql -h localhost -u root -proot mintclassics -e "
+            SELECT products.product_id, products.product_name, inventory.quantity, IFNULL(SUM(sales.quantity_sold), 0) AS total_sold
+            FROM products
+            LEFT JOIN inventory ON products.product_id = inventory.product_id
+            LEFT JOIN sales ON products.product_id = sales.product_id
+            GROUP BY products.product_id, products.product_name, inventory.quantity;"
+          mysql -h localhost -u root -proot mintclassics -e "
+            SELECT products.product_id, products.product_name, inventory.quantity, IFNULL(SUM(sales.quantity_sold), 0) AS total_sold
+            FROM products
+            LEFT JOIN inventory ON products.product_id = inventory.product_id
+            LEFT JOIN sales ON products.product_id = sales.product_id
+            GROUP BY products.product_id, products.product_name, inventory.quantity
+            HAVING total_sold = 0 OR total_sold < 5;"
+            
